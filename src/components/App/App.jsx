@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -11,112 +11,99 @@ import { Button } from 'components/Button';
 
 import { Container, InfoText } from './App.styled';
 
-export class App extends Component {
-  state = {
-    searchQuery: '',
-    loading: false,
-    images: [],
-    page: 1,
-    totalHits: 0,
-    picturesHits: 0,
-    error: null,
-  };
+export const App = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalHits, setTotalHits] = useState(0);
+  const [error, setError] = useState(null);
 
-  componentDidUpdate(_, prevState) {
-    const prevQuery = prevState.searchQuery;
-    const nextQuery = this.state.searchQuery;
-    const prevPage = prevState.page;
-    const nextPage = this.state.page;
-
-    if (prevQuery !== nextQuery || prevPage !== nextPage) {
-      // this.setState({ loading: true });
-
-      // setTimeout(() => {
-      //   this.onSearch(nextQuery, nextPage);
-      // }, 3000);
-      this.onSearch(nextQuery, nextPage);
-    }
-  }
-
-  handleFormSubmit = query => {
-    const { searchQuery } = this.state;
+  const handleFormSubmit = query => {
     if (searchQuery !== query.trim()) {
-      this.setState({
-        searchQuery: query.trim(),
-        images: [],
-        page: 1,
-        totalHits: 0,
-        picturesHits: 0,
-      });
+      setSearchQuery(query.trim());
+      setImages([]);
+      setPage(1);
+      setTotalHits(0);
     }
   };
 
-  async onSearch(query, page) {
-    const { picturesHits } = this.state;
+  const picturesHits = useRef(0);
 
-    try {
-      this.setState({ loading: true });
-      const pictures = await fetchPictures(query, page);
-      this.setState(prevState => ({
-        images: [...prevState.images, ...pictures.hits],
-        totalHits: pictures.totalHits,
-        picturesHits: prevState.picturesHits + pictures.hits.length,
-      }));
-
-      toast.success(
-        `Found ${picturesHits + pictures.hits.length} images out of ${
-          pictures.totalHits
-        }`,
-        {
-          position: 'top-right',
-          autoClose: 2000,
-          theme: 'light',
+  useEffect(() => {
+    if (searchQuery === '') {
+      return;
+    }
+    if (page === 1) {
+      picturesHits.current = 0;
+    }
+    const onSearch = async (query, page) => {
+      try {
+        setLoading(true);
+        const pictures = await fetchPictures(query, page);
+        setImages(prevState => [...prevState, ...pictures.hits]);
+        setTotalHits(pictures.totalHits);
+        picturesHits.current += pictures.hits.length;
+        console.log(picturesHits.current);
+        if (!pictures.hits.length) {
+          toast.error(`No images found for "${searchQuery}", try again😢`, {
+            position: 'top-right',
+            autoClose: 2000,
+          });
         }
-      );
-    } catch (error) {
-      this.setState({ error: 'No images found, try again😢' });
-    } finally {
-      this.setState({ loading: false });
-    }
-  }
+        if (page >= 1 && pictures.hits.length) {
+          toast.success(
+            `Found ${picturesHits.current} images out of ${pictures.totalHits}`,
+            {
+              position: 'top-right',
+              autoClose: 2000,
+              theme: 'light',
+            }
+          );
+          if (picturesHits.current >= pictures.totalHits) {
+            toast.success(
+              `You reached the end of the search list for "${searchQuery}"`,
+              {
+                position: 'top-right',
+                autoClose: 2000,
+              }
+            );
+          }
+        }
+      } catch (error) {
+        setError('No images found, try again😢');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  loadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
+    onSearch(searchQuery, page);
+    return;
+  }, [page, searchQuery]);
+
+  const loadMore = () => {
+    setPage(page => page + 1);
   };
 
-  render() {
-    const { searchQuery, images, totalHits, loading, error } = this.state;
-    return (
-      <Container>
-        <Searchbar onSubmit={this.handleFormSubmit}></Searchbar>
-
-        {error && <h2>{error}</h2>}
-
-        {searchQuery ? (
-          images.length ? (
-            <ImageGallery images={images}></ImageGallery>
-          ) : (
-            !loading &&
-            !error && <InfoText>No images found for "{searchQuery}"</InfoText>
-          )
+  return (
+    <Container>
+      <Searchbar onSubmit={handleFormSubmit}></Searchbar>
+      {error && <h2>{error}</h2>}
+      {searchQuery ? (
+        images.length ? (
+          <ImageGallery images={images}></ImageGallery>
         ) : (
-          <InfoText>Enter text for search!</InfoText>
-        )}
-
-        {loading && <Loader />}
-
-        {images.length > 0 && images.length < totalHits && (
-          <Button onClick={this.loadMore} />
-        )}
-
-        <ToastContainer
-          position="top-center"
-          autoClose={3000}
-          theme="colored"
-        />
-      </Container>
-    );
-  }
-}
+          !loading &&
+          !error && <InfoText>No images found for "{searchQuery}"</InfoText>
+        )
+      ) : (
+        <InfoText>Enter text for search!</InfoText>
+      )}
+      {loading && <Loader />}
+      {images.length > 0 && images.length < totalHits && (
+        <Button onClick={loadMore} />
+      )}
+      <ToastContainer position="top-center" autoClose={3000} theme="colored" />
+    </Container>
+  );
+};
