@@ -44,7 +44,6 @@ export const App = () => {
         setImages(prevState => [...prevState, ...pictures.hits]);
         setTotalHits(pictures.totalHits);
         picturesHits.current += pictures.hits.length;
-        console.log(picturesHits.current);
         if (!pictures.hits.length) {
           toast.error(`No images found for "${searchQuery}", try again😢`, {
             position: 'top-right',
